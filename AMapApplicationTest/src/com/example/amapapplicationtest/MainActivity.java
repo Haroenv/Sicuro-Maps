@@ -1,0 +1,284 @@
+package com.example.amapapplicationtest;
+
+
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.location.Criteria;
+import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
+import android.os.Bundle;
+import android.support.v4.app.FragmentActivity;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.PopupWindow;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.GoogleMap.OnMapLongClickListener;
+import com.google.android.gms.maps.GoogleMapOptions;
+import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.CameraPosition;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.wallet.Address;
+
+import java.io.IOException;
+import java.util.List;
+
+
+public class MainActivity extends FragmentActivity implements LocationListener
+{
+    Context context = this;
+    GoogleMap googlemap;
+    MarkerDataSource data;
+    /** Called when the activity is first created. */
+    @Override
+    public void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        initMap();
+       
+        
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        String provider = lm.getBestProvider(new Criteria(), true);
+
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        Criteria criteria = new Criteria();
+
+        Location location = locationManager.getLastKnownLocation(locationManager.getBestProvider(criteria, false));
+        if (location != null)
+        {
+            googlemap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                    new LatLng(location.getLatitude(), location.getLongitude()), 13));
+
+            CameraPosition cameraPosition = new CameraPosition.Builder()
+            .target(new LatLng(location.getLatitude(), location.getLongitude()))      // Sets the center of the map to location user
+            .zoom(17)                   // Sets the zoom
+            .bearing(90)                // Sets the orientation of the camera to east
+            .tilt(40)                   // Sets the tilt of the camera to 30 degrees
+            .build();                   // Creates a CameraPosition from the builder
+        googlemap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
+
+        }
+        
+
+        
+        if (provider == null) {
+            onProviderDisabled(provider);
+        }
+        data = new MarkerDataSource(context);
+        try {
+           data.open();
+           
+        } catch (Exception e) {
+            Log.i("hello", "hello");
+        }
+        
+        List<MyMarkerObj> m = data.getMyMarkers();
+        for (int i = 0; i < m.size(); i++) {
+            String[] slatlng =  m.get(i).getPosition().split(" ");
+            LatLng lat = new LatLng(Double.valueOf(slatlng[0]), Double.valueOf(slatlng[1]));
+            googlemap.addMarker(new MarkerOptions()
+                    .title(m.get(i).getTitle())
+                    .snippet(m.get(i).getSnippet())
+                    .position(lat)
+                    );
+         
+
+        
+       
+    
+        
+        
+        
+        
+        googlemap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+
+            public void onInfoWindowClick(Marker marker) {
+            	Toast.makeText(getBaseContext(), 
+            		    "Info Window clicked@" + marker.getId(), 
+            		    Toast.LENGTH_SHORT).show();
+            }
+        });
+
+             //  marker.view();
+            //    data.getMarker(new MyMarkerObj(marker.getTitle(), marker.getSnippet(), marker.getPosition().latitude + " " + marker.getPosition().longitude));
+            }
+ 
+        googlemap.setOnMapLongClickListener(new GoogleMap.OnMapLongClickListener() {
+
+            public void onMapLongClick(final LatLng latlng) {
+                LayoutInflater li = LayoutInflater.from(context);
+                final View v = li.inflate(R.layout.alertlayout, null);
+                AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                builder.setView(v);
+                builder.setCancelable(false);
+                
+                builder.setPositiveButton("Create", new DialogInterface.OnClickListener() {
+
+                    public void onClick(DialogInterface dialog, int which) {
+                        EditText title = (EditText) v.findViewById(R.id.ettitle);
+                        EditText snippet = (EditText) v.findViewById(R.id.etsnippet);
+                        googlemap.addMarker(new MarkerOptions()
+                                .title(title.getText().toString())
+                                .snippet(snippet.getText().toString())
+                                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE))
+                                .position(latlng)
+                                );     
+                        String sll = latlng.latitude + " " + latlng.longitude;
+                        data.addMarker(new MyMarkerObj(title.getText().toString(), snippet.getText().toString(), sll));
+                    }
+                });
+                
+                builder.setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.cancel();
+                    }
+                });
+                
+                AlertDialog alert = builder.create();
+                alert.show();
+                
+            }
+        });
+    }
+
+
+	public void onLocationChanged(Location location) {
+    }
+
+    public void onStatusChanged(String provider, int status, Bundle extras) {
+    }
+
+    public void onProviderEnabled(String provider) {
+    }
+
+    public void onProviderDisabled(String provider) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Phone is in airplane mode");
+        builder.setCancelable(false);
+        builder.setPositiveButton("Enable GPS", new DialogInterface.OnClickListener() {
+
+            public void onClick(DialogInterface dialog, int which) {
+                Intent startGps = new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                startActivity(startGps);
+            }
+        });
+        builder.setNegativeButton("Leave GPS off", new DialogInterface.OnClickListener() {
+
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.cancel();
+            }
+        });
+        
+        AlertDialog alert = builder.create();
+        alert.show();
+    }
+    private void initMap(){
+        SupportMapFragment mf = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        googlemap = mf.getMap();
+        
+        if (googlemap !=null){
+        	googlemap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter(){
+        	
+				@Override
+				public View getInfoWindow(Marker arg0) {
+					// TODO Auto-generated method stub
+					return null;
+					
+				}
+				
+				@Override
+				public View getInfoContents(Marker marker) {
+					// TODO Auto-generated method stub
+					View v = getLayoutInflater().inflate(R.layout.infowindow,  null);
+					TextView title = (TextView) v.findViewById(R.id.tvtitle);
+					TextView description = (TextView) v.findViewById(R.id.tvdescription);
+					
+					title.setText(marker.getTitle());
+					description.setText(marker.getSnippet());
+					return v;
+				}
+			});
+        }
+        
+        
+        googlemap.getUiSettings().setZoomControlsEnabled(true);
+        googlemap.setMyLocationEnabled(true);
+        googlemap.getUiSettings().setMyLocationButtonEnabled(true);
+        googlemap.getUiSettings().setCompassEnabled(true);
+        googlemap.setMapType(GoogleMap.MAP_TYPE_NORMAL); 
+        googlemap.getUiSettings().setRotateGesturesEnabled(true);
+        googlemap.setTrafficEnabled(true);
+        
+    }
+    private void gotoLocation(double lat, double lng, float zoom){
+    	LatLng ll = new LatLng(lat, lng);
+    	CameraUpdate update= CameraUpdateFactory.newLatLngZoom(ll,  zoom);
+    	googlemap.moveCamera(update);
+    }
+    
+    private void hideSoftKeyboard(View v){
+    	InputMethodManager imm =(InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
+    	imm.hideSoftInputFromWindow(v.getWindowToken(),0);
+    }
+    @Override
+    protected void onPause() {
+        data.close();
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        try {
+           data.open();
+           
+        } catch (Exception e) {
+            Log.i("hello", "hello");
+        }
+        super.onResume();
+    }
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+     int itemId = item.getItemId();
+	if (itemId == R.id.menu_legalnotices) {
+		String LicenseInfo = GooglePlayServicesUtil.getOpenSourceSoftwareLicenseInfo(
+		    getApplicationContext());
+		AlertDialog.Builder LicenseDialog = new AlertDialog.Builder(MainActivity.this);
+		LicenseDialog.setTitle("Legal Notices");
+		LicenseDialog.setMessage(LicenseInfo);
+		LicenseDialog.show();
+		return true;
+	}
+     return super.onOptionsItemSelected(item); 
+    }
+
+
+}
+
+
